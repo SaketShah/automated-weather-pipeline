@@ -1,0 +1,36 @@
+name: Daily Weather Pipeline
+
+# 1. When should this run?
+on:
+  schedule:
+    # This is a Cron expression. It means "Run at 8:00 AM UTC every day"
+    - cron: '0 8 * * *'
+  # This line allows you to click a button on GitHub to run it manually!
+  workflow_dispatch: 
+
+# 2. What exactly should the server do?
+jobs:
+  run-weather-etl:
+    # Rent a free Linux server from Microsoft
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step A: Download your code from your repository onto the server
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Step B: Install Python on the server
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      # Step C: Read the shopping list and install your libraries
+      - name: Install Requirements
+        run: |
+          pip install -r requirements.txt
+
+      # Step D: Run your script!
+      - name: Execute Weather Pipeline
+        run: |
+          python automated_weather.py
