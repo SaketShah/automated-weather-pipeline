@@ -33,4 +33,4 @@ jobs:
       # Step D: Run your script!
       - name: Execute Weather Pipeline
         run: |
-          python automated_weather.py
+          python weather_pipeline.py
