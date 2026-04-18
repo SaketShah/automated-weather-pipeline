@@ -32,5 +32,7 @@ jobs:
 
       # Step D: Run your script!
       - name: Execute Weather Pipeline
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           python weather_pipeline.py
