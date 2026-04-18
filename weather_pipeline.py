@@ -6,9 +6,8 @@ from datetime import datetime
 import logging
 
 logging.basicConfig(
-    filename='weather_pipeline.log',     # The file where logs will be saved
-    level=logging.INFO,                  # Record INFO, WARNING, ERROR, and CRITICAL
-    format='%(asctime)s - [%(levelname)s] - %(message)s',
+    level=logging.INFO,                  
+    format='%(asctime)s - [%(levelname)s] - %(message)s', 
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 
@@ -87,7 +86,7 @@ def run_weather_etl():
             
     except Exception as e:
         logging.error(f"Critical Cloud Database failure: {e}")
-        return
+        raise e
     
     logging.info("--- Pipeline Complete! ---")
 
