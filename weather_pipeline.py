@@ -1,6 +1,7 @@
 import requests
 import pandas as pd
-import sqlite3
+import os
+from sqlalchemy import create_engine, text
 from datetime import datetime
 import logging
 
@@ -51,35 +52,41 @@ def run_weather_etl():
   
     # 3. LOAD (Idempotent)
 
-    logging.info("Loading idempotently into weather_warehouse.db...")
+    logging.info("Connecting to Supabase Cloud Vault...")
+    
+    # 1. Securely fetch the database URL from GitHub Secrets
+    db_url = os.environ.get("DATABASE_URL")
+    if not db_url:
+        logging.critical("No DATABASE_URL found! Pipeline aborted.")
+        return
+
+    # 2. Create the connection engine
+    engine = create_engine(db_url)
+    
     try:
-        with sqlite3.connect('weather_warehouse.db') as conn:
-            cursor = conn.cursor()
+        with engine.connect() as conn:
             
-            new_dates = df['date'].tolist()
-            placeholders = ', '.join(['?'] * len(new_dates))
-            delete_query = f"DELETE FROM saskatoon_forecast WHERE date IN ({placeholders})"
+            # --- The Idempotent Delete ---
+            # Postgres uses a slightly different syntax for lists than SQLite
+            dates_list = df['date'].tolist()
+            delete_query = text("DELETE FROM saskatoon_forecast WHERE date = ANY(:dates)")
             
             try:
-                cursor.execute(delete_query, new_dates)
-                logging.info(f"Cleared out any existing data for the {len(new_dates)} incoming dates.")
-                
-            except sqlite3.OperationalError as e:
-                # We save the error as 'e' and look at the exact text inside it
-                if "no such table" in str(e):
-                    logging.info("First run detected: Table doesn't exist yet. Skipping delete step.")
-                    pass 
-                else:
-                    raise e
-            # ... moving on to append ...------
-            
-            # Now it safely moves on to create the table and append the data!
-            df.to_sql('saskatoon_forecast', conn, index=False, if_exists='append')
-            logging.info(f"Successfully appended {len(df)} new rows to the vault.")
+                # We execute the delete and force a commit
+                conn.execute(delete_query, {"dates": dates_list})
+                conn.commit()
+                logging.info(f"Cleared out old data for {len(dates_list)} dates.")
+            except Exception as e:
+                # If the table doesn't exist, Postgres throws an error. We catch it and rollback!
+                conn.rollback()
+                logging.info("First run detected: Table doesn't exist yet. Skipping delete.")
+
+            # --- The Append ---
+            df.to_sql('saskatoon_forecast', engine, index=False, if_exists='append')
+            logging.info(f"Successfully beamed {len(df)} rows to the cloud!")
             
     except Exception as e:
-        # This will only catch REAL database failures now
-        logging.error(f"Critical database failure: {e}")
+        logging.error(f"Critical Cloud Database failure: {e}")
         return
     
     logging.info("--- Pipeline Complete! ---")
